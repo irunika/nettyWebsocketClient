@@ -8,19 +8,29 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.PongWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketClientHandshaker;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.util.CharsetUtil;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Created by irunika on 2/15/17.
  */
 public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> {
+    public static void main(String[] args) throws URISyntaxException {
+        String str = "/hello/john%3Bx%3D9%3By%3D10/hi";
+        URI uri = new URI(str);
+        System.out.println(uri.getPath());
+        System.out.println(uri);
+    }
+
+
     private final WebSocketClientHandshaker handshaker;
     private ChannelPromise handshakeFuture;
 
@@ -68,9 +78,18 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
         WebSocketFrame frame = (WebSocketFrame) msg;
         if (frame instanceof TextWebSocketFrame) {
             TextWebSocketFrame textFrame = (TextWebSocketFrame) frame;
-            System.out.println("WebSocket Client received message: " + textFrame.text());
+            String text = textFrame.text();
+            System.out.println("WebSocket Client received message: " + text);
         } else if (frame instanceof BinaryWebSocketFrame) {
-            System.out.println();
+            BinaryWebSocketFrame binaryWebSocketFrame = (BinaryWebSocketFrame) msg;
+            System.out.println("Binary message");
+            String text = binaryWebSocketFrame.content().toString(StandardCharsets.UTF_8);
+            System.out.println(text);
+        } else if (frame instanceof PingWebSocketFrame) {
+            System.out.println("WebSocket Client received ping");
+//            Thread.sleep(7000);
+            frame.retain();
+            ctx.channel().writeAndFlush(new PongWebSocketFrame(frame.content()));
         } else if (frame instanceof PongWebSocketFrame) {
             System.out.println("WebSocket Client received pong");
         } else if (frame instanceof CloseWebSocketFrame) {

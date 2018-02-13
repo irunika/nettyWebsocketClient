@@ -20,8 +20,14 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.PongWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 
@@ -58,20 +64,40 @@ public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocket
             // Send the uppercase string back.
             String request = ((TextWebSocketFrame) frame).text();
             System.out.println("received " + ctx.channel() + ": " + request);
+            if ("ping".equals(request)) {
+                ctx.channel().writeAndFlush(new PingWebSocketFrame(Unpooled.wrappedBuffer(ByteBuffer.wrap(new byte[]{1,2,3,4}))));
+                return;
+            }
+            if ("http".equals(request)) {
+                HttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "hi");
+                ctx.writeAndFlush(httpRequest);
+                return;
+            }
             ctx.channel().writeAndFlush(new TextWebSocketFrame(request.toUpperCase(Locale.US)));
         } else if (frame instanceof BinaryWebSocketFrame) {
             System.out.println("received " + ctx.channel() + ": " + "bytes");
-            byte[] bytes = {1, 2, 3, 4, 5};
-            ByteBuffer buffer = ByteBuffer.wrap(bytes);
-            WebSocketFrame frame1 = new BinaryWebSocketFrame(Unpooled.wrappedBuffer(buffer));
+            WebSocketFrame frame1 = new BinaryWebSocketFrame(Unpooled.wrappedBuffer(frame.content().nioBuffer()));
             ctx.channel().writeAndFlush(frame1);
-        }
-        else if (frame instanceof CloseWebSocketFrame) {
+        } else if (frame instanceof PingWebSocketFrame) {
+            System.out.println("WebSocket server received ping");
+            frame.retain();
+            ctx.channel().writeAndFlush(new PingWebSocketFrame(frame.content()));
+//            frame.retain();
+//            ctx.channel().writeAndFlush(new PongWebSocketFrame(frame.content()));
+        } else if (frame instanceof PongWebSocketFrame) {
+            System.out.println("WebSocket server received pong");
+            frame.retain();
+            ctx.channel().writeAndFlush(new PongWebSocketFrame(frame.content()));
+        } else if (frame instanceof CloseWebSocketFrame) {
             System.out.println("Connection is closed.");
             ctx.close();
         }else {
             String message = "unsupported frame type: " + frame.getClass().getName();
             throw new UnsupportedOperationException(message);
         }
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
     }
 }
